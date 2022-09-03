@@ -94,8 +94,7 @@ void console_putchar(char ch) {
     if (ch == ' ') {
         g_vga_buffer[g_vga_index++] = vga_item_entry(' ', g_fore_color, g_back_color);
         vga_set_cursor_pos(cursor_pos_x++, cursor_pos_y);
-    }
-    if (ch == '\t') {
+    } else if (ch == '\t') {
         for(int i = 0; i < 4; i++) {
             g_vga_buffer[g_vga_index++] = vga_item_entry(' ', g_fore_color, g_back_color);
             vga_set_cursor_pos(cursor_pos_x++, cursor_pos_y);
