@@ -53,4 +53,12 @@ void vga_set_cursor_pos(uint8 x, uint8 y);
  */
 void vga_disable_cursor();
 
+void vga_enable_cursor(uint8 cursor_start, uint8 cursor_end);
+
+uint16 vga_get_cursor_position(void);
+
+uint16 vga_get_cursor_pos_x();
+
+uint16 vga_get_cursor_pos_y();
+
 #endif

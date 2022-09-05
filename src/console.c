@@ -5,10 +5,14 @@
 #include "keyboard.h"
 
 static uint16 *g_vga_buffer;
+
+char *vga_str_buffer;
 //index for video buffer array
 static uint32 g_vga_index;
+
 // cursor positions
-static uint8 cursor_pos_x = 0, cursor_pos_y = 0;
+uint8 cursor_pos_x = 0, cursor_pos_y = 0;
+
 //fore & back color values
 uint8 g_fore_color = COLOR_WHITE, g_back_color = COLOR_BLACK;
 static uint16 g_temp_pages[MAXIMUM_PAGES][VGA_TOTAL_ITEMS];
@@ -57,6 +61,20 @@ void console_scroll(int type) {
     }
 }
 
+void console_auto_scroll()
+{
+    for(int i = 0; i < 8; i++)
+    {
+        int i = 0;
+        for(i = 0; i < VGA_WIDTH * (VGA_HEIGHT - 1); i++)
+        {
+            g_vga_buffer[i] = g_vga_buffer[i + VGA_WIDTH];
+        }
+        for(int i = VGA_WIDTH * (VGA_HEIGHT - 1); i < VGA_WIDTH * VGA_HEIGHT; i++)
+           g_vga_buffer[i] = 0x000a3cc8;
+    }
+}
+
 int removeHeadAddTail(int tail, int headIndex) {
     int head = g_vga_buffer[headIndex];
     g_vga_buffer[headIndex] = tail;
@@ -70,13 +88,12 @@ increase vga_index by width of vga width
 static void console_newline() {
     uint32 i;
 
+    //vga_set_cursor_pos(0, 0);
+
     if (cursor_pos_y >= VGA_HEIGHT) {
-        for (i = 0; i < VGA_TOTAL_ITEMS; i++)
-            g_temp_pages[g_current_temp_page][i] = g_vga_buffer[i];
-        g_current_temp_page++;
-        cursor_pos_x = 0;
-        cursor_pos_y = 0;
         console_clear(g_fore_color, g_back_color);
+        printf("%s", vga_str_buffer);       
+
     } else {
         for (i = 0; i < VGA_TOTAL_ITEMS; i++)
             g_temp_pages[g_current_temp_page][i] = g_vga_buffer[i];
@@ -91,10 +108,12 @@ static void console_newline() {
 
 //assign ascii character to video buffer
 void console_putchar(char ch) {
+    vga_str_buffer += ch;
     if (ch == ' ') {
         g_vga_buffer[g_vga_index++] = vga_item_entry(' ', g_fore_color, g_back_color);
-        vga_set_cursor_pos(cursor_pos_x++, cursor_pos_y);
-    } else if (ch == '\t') {
+        vga_set_cursor_pos(++cursor_pos_x, cursor_pos_y);
+    }
+    else if (ch == '\t') {
         for(int i = 0; i < 4; i++) {
             g_vga_buffer[g_vga_index++] = vga_item_entry(' ', g_fore_color, g_back_color);
             vga_set_cursor_pos(cursor_pos_x++, cursor_pos_y);
@@ -114,7 +133,7 @@ void console_ungetchar() {
     if(g_vga_index > 0) {
         g_vga_buffer[g_vga_index--] = vga_item_entry(0, g_fore_color, g_back_color);
         if(cursor_pos_x > 0) {
-            vga_set_cursor_pos(cursor_pos_x--, cursor_pos_y);
+            vga_set_cursor_pos(--cursor_pos_x, cursor_pos_y);
         } else {
             cursor_pos_x = VGA_WIDTH;
             if (cursor_pos_y > 0)

@@ -1,6 +1,7 @@
 #include "vga.h"
 #include "io_ports.h"
 #include "types.h"
+#include "console.h"
 
 /**
  * 16 bit video buffer elements(register ax)
@@ -46,7 +47,45 @@ void vga_set_cursor_pos(uint8 x, uint8 y) {
  * by writing to CRT controller registers
  */
 void vga_disable_cursor() {
-    outportb(0x3D4, 10);
-    outportb(0x3D5, 32);
+    outportb(0x3D4, 0x0A);
+	outportb(0x3D5, 0x20);
 }
 
+void vga_enable_cursor(uint8 cursor_start, uint8 cursor_end)
+{
+	outportb(0x3D4, 0x0A);
+	outportb(0x3D5, (inportb(0x3D5) & 0xC0) | cursor_start);
+ 
+	outportb(0x3D4, 0x0B);
+	outportb(0x3D5, (inportb(0x3D5) & 0xE0) | cursor_end);
+}
+
+uint16 vga_get_cursor_position(void)
+{
+    uint16 pos = 0;
+    outportb(0x3D4, 0x0F);
+    pos |= inportb(0x3D5);
+    outportb(0x3D4, 0x0E);
+    pos |= ((uint16)inportb(0x3D5)) << 8;
+    return pos;
+}
+
+uint16 vga_get_cursor_pos_x(){
+    uint16 pos = 0;
+    outportb(0x3D4, 0x0F);
+    pos |= inportb(0x3D5);
+    outportb(0x3D4, 0x0E);
+    pos |= ((uint16)inportb(0x3D5)) << 8;
+    pos = pos / VGA_WIDTH;
+    return pos;
+}
+
+uint16 vga_get_cursor_pos_y(){
+    uint16 pos = 0;
+    outportb(0x3D4, 0x0F);
+    pos |= inportb(0x3D5);
+    outportb(0x3D4, 0x0E);
+    pos |= ((uint16)inportb(0x3D5)) << 8;
+    pos = pos % VGA_WIDTH;
+    return pos;
+}

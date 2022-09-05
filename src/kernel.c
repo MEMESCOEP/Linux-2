@@ -14,6 +14,7 @@ char *Username = "root";
 char *OS_Name = "TEST_OS";
 char *OS_Version = "0.0.2";
 char *cwd = "NoFS";
+char *cmdlist = "1. help\n2. shutdown\n3. reboot\n4. clear\n5. panic\n6. exit\n7. fstest\n8. dsk";
 
 dword *SMI_CMD;
 byte ACPI_ENABLE;
@@ -56,13 +57,35 @@ FATFS FatFs;		/* FatFs work area needed for each volume */
 FIL Fil;			/* File object needed for each open file */
 
 // Functions
+
+void PANIC(char* msg, char* exception){
+   console_clear(COLOR_WHITE, COLOR_RED);
+   printf("[================================ KERNEL PANIC ================================]");
+   printf("MSG: %s", msg);
+
+   for(int i = 0; i < VGA_WIDTH - strlen(msg) - 5; i++){
+      printf(" ");
+   }
+
+   printf("EX : %s", exception);
+
+   for(int i = 0; i < VGA_WIDTH - strlen(exception) - 5; i++){
+      printf(" ");
+   }
+
+   vga_disable_cursor();
+   vga_set_cursor_pos(0, 0);
+   for(;;){
+      asm("hlt");
+   }
+}
+
 void kmain() {
    gdt_init();
    idt_init();
    
    UINT bw;
    FRESULT fr;
-
 
    /*f_mount(&FatFs, "", 0);		// Give a work area to the default drive 
 
@@ -79,18 +102,25 @@ void kmain() {
    keyboard_init();
    ata_init();
 
-   console_clear(COLOR_WHITE, COLOR_BLACK);
+   //console_clear(COLOR_WHITE, COLOR_BLACK);
 
    command[0] = 0;
 
-   printf("%s (%s)\nType \"help\" for a list of commands.\n\n", OS_Name, OS_Version);
-   printf("%s@%s[%s] >> ", Username, OS_Name, cwd);
+   printf("\n%s (%s)\nType \"help\" for a list of commands.\n\n", OS_Name, OS_Version);
+   printf("[%s] >> ", cwd);
 
    while(1){
       char ch = kb_getchar();
       if(ch != '\n' && ch != 0 && ch != '\0'){
-               append(command, ch);
-               printf("%c", ch);
+               if(ch != 0x08){
+                  append(command, ch);
+                  printf("%c", ch);
+               }else{
+                  if(strlen(command) > 0){
+                     command[strlen(command) - 1] = '\0';
+                     console_ungetchar();
+                  }
+               }
       }
       else{		
          printf("\n");
@@ -99,7 +129,7 @@ void kmain() {
             printf("\n");
          }
 
-         printf("%s@%s[%s] >> ", Username, OS_Name, cwd);
+         printf("[%s] >> ", cwd);
       }
    }   
 }
@@ -126,6 +156,8 @@ void interpret(char* cmd){
         initAcpi();
         acpiPowerOff();
 		printf("Shutdown failed.\n");
+      console_clear(COLOR_WHITE, COLOR_BLACK);
+      PANIC("OS HALTED BECAUSE SHUTDOWN FAILED.", "SHUTDOWN FAILED");
 	}
 
     else if(strcmp(cmd, "reboot") == 0){
@@ -136,6 +168,33 @@ void interpret(char* cmd){
 
    else if(strcmp(cmd, "clear") == 0){
       console_clear(COLOR_WHITE, COLOR_BLACK);
+   }
+
+   else if(strcmp(cmd, "panic") == 0){
+      PANIC("USER GENERATED PANIC", "No exception occurred.");
+   }
+
+   else if(strcmp(cmd, "exit") == 0){
+      console_clear(COLOR_WHITE, COLOR_BLACK);
+      printf("OS HALTED.\n");      
+      vga_disable_cursor();
+      printf("You may now power off your computer.");
+      for(;;){
+         asm("hlt");
+      }
+   }
+
+   else if(strcmp(cmd, "ec") == 0){
+      vga_enable_cursor(0, 0);
+      //vga_set_cursor_pos(0, 0);
+   }
+
+   else if(strcmp(cmd, "dc") == 0){
+      vga_disable_cursor();
+   }
+
+   else if(strcmp(cmd, "gc") == 0){
+      printf("X: %d, Y: %d", vga_get_cursor_pos_x(), vga_get_cursor_pos_y());
    }
 
    else if(strcmp(cmd, "fstest") == 0){
@@ -182,35 +241,55 @@ void interpret(char* cmd){
 
    else if(strcmp(cmd, "dsk") == 0){
       IDE_DEVICE *drives = ata_get_drives();
-      for(int i = 0; i < MAXIMUM_IDE_DEVICES; i++){
+      for(int i = 0; i < sizeof drives - 1; i++){
          if(drives[i].type == 0){
             if(strcmp(drives[i].model, "") != 0){
                printf("Hard Drive: \"%s\"\n", drives[i].model);
-               printf("Size: %d bytes\n\n", (drives[i].size));
+               printf("Size: %d bytes\n", (drives[i].size));
+               printf("Channel: %d\n", (drives[i].channel));
+               printf("Signature: %d\n", (drives[i].signature));
+               printf("Reserved: %d\n", (drives[i].reserved));
+               printf("Type: %d\n\n", (drives[i].type));
             }
          }
          else if(drives[i].type == 1){
             if(strcmp(drives[i].model, "") != 0){
                printf("DVD-ROM Drive: \"%s\"\n", drives[i].model);
+               printf("Size: %d bytes\n", (drives[i].size));
+               printf("Channel: %d\n", (drives[i].channel));
+               printf("Signature: %d\n", (drives[i].signature));
+               printf("Reserved: %d\n", (drives[i].reserved));
+               printf("Type: %d\n\n", (drives[i].type));
             }
          }
          else{
             printf("Unknown: %s (Type=%d)\n", drives[i].model, drives[i].type);
+            printf("Size: %d bytes\n", (drives[i].size));
+            printf("Channel: %d\n", (drives[i].channel));
+            printf("Signature: %d\n", (drives[i].signature));
+            printf("Reserved: %d\n", (drives[i].reserved));
+            printf("Type: %d\n\n", (drives[i].type));
          }         
+
+         printf("PRESS ANY KEY TO CONTINUE\n");
+         kb_getchar();
       }
    }
 
+   else if(strcmp(cmd, "help") == 0){
+      printf("%s help\n", OS_Name);
+      printf("%s\n", cmdlist);
+   }
+
 	else {
-		printf("Invalid command: ");
-		printf(cmd);
-		printf("\n");
+		printf("Invalid command: \"");
+      printf(cmd);
+      printf("\"\n");
 	}
 		
 	for(int i = 0; i < strlen(command); i++){
 		command[i] = 0;
 	}
-
-   //console_scroll(SCROLL_DOWN);
 }
 
 void reboot()
